@@ -43,14 +43,16 @@ public abstract class BaseStateFragment<I> extends BaseFragment implements ViewC
     public void onSaveInstanceState(@NonNull final Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean("wasLoading", wasLoading.get());
-        outState.putParcelable("lastPanelError", lastPanelError);
+        // Do NOT save lastPanelError: ErrorInfo carries full stack traces and was the cause of
+        // TransactionTooLargeException (~650 KB saved state). Content is reloaded on restore
+        // (doInitialLoadLogic -> startLoading), which replaces the error panel anyway.
     }
 
     @Override
     protected void onRestoreInstanceState(@NonNull final Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);
         wasLoading = new AtomicBoolean(savedInstanceState.getBoolean("wasLoading", false));
-        lastPanelError = savedInstanceState.getParcelable("lastPanelError");
+        lastPanelError = null;
     }
 
     @Override
