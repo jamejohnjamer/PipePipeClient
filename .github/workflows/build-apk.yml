@@ -46,5 +46,12 @@ jobs:
       - name: Build
         working-directory: PipePipeClient
         run: ./gradlew :app:assembleDebug --stacktrace
+      - name: Verify APKs
+        working-directory: PipePipeClient
+        run: |
+          ls -l app/build/outputs/apk/debug/
+          sha256sum app/build/outputs/apk/debug/*.apk
+          for apk in app/build/outputs/apk/debug/*.apk; do unzip -t "$apk" >/dev/null && echo "OK archive: $apk"; done
       - uses: actions/upload-artifact@v4
         with: { name: apk-debug, path: "PipePipeClient/app/build/outputs/apk/**/*.apk" }
+
