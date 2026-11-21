@@ -7,7 +7,10 @@
 # only a fallback if no cmdline-tools is found on the runner.
 # Also: setup-java is 25, not 21 — the project needs Java 25
 # (app/build.gradle: sourceCompatibility VERSION_25, compileSdk 37).
-# SDK installed: platform-tools + platforms;android-37 + build-tools;37.0.0.
+# SDK installed: platform-tools + platforms;android-37.1 + build-tools;37.0.0.
+# NOTE: the platform package is "android-37.1", NOT "android-37" —
+# Android 17 ships as release 37 minor level 1, and plain
+# "platforms;android-37" does not exist (run #3 failed on it).
 name: Build debug APK
 on: [workflow_dispatch, push]
 jobs:
@@ -36,7 +39,7 @@ jobs:
             SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           fi
           yes | "$SDKMANAGER" --licenses
-          "$SDKMANAGER" "platform-tools" "platforms;android-37" "build-tools;37.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-37.1" "build-tools;37.0.0"
       - name: Unit tests
         working-directory: PipePipeClient
         run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --stacktrace
