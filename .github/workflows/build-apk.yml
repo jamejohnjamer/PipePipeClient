@@ -1,4 +1,13 @@
 # Put this file in the PipePipeClient repo (fork) at .github/workflows/build-apk.yml
+# Fix 2026-11-21: android-actions/setup-android@v3 was REMOVED. Its run
+# failed because it runs `sdkmanager tools`, and Google removed the old
+# "tools" package — "Warning: Failed to find package 'tools'" (run #1).
+# The SDK is now set up by hand with cmdline-tools, which the runner
+# already has at $ANDROID_HOME/cmdline-tools/16.0; the download below is
+# only a fallback if no cmdline-tools is found on the runner.
+# Also: setup-java is 25, not 21 — the project needs Java 25
+# (app/build.gradle: sourceCompatibility VERSION_25, compileSdk 37).
+# SDK installed: platform-tools + platforms;android-37 + build-tools;37.0.0.
 name: Build debug APK
 on: [workflow_dispatch, push]
 jobs:
@@ -10,8 +19,24 @@ jobs:
       - uses: actions/checkout@v4
         with: { repository: InfinityLoop1308/PipePipeExtractor, path: PipePipeExtractor }
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: 21 }
-      - uses: android-actions/setup-android@v3
+        with: { distribution: temurin, java-version: 25 }
+      - name: Set up Android SDK 37
+        run: |
+          SDKMANAGER=""
+          for d in "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/cmdline-tools/16.0/bin" "$ANDROID_HOME/cmdline-tools/15.0/bin"; do
+            if [ -x "$d/sdkmanager" ]; then SDKMANAGER="$d/sdkmanager"; break; fi
+          done
+          if [ -z "$SDKMANAGER" ]; then
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            cd "$ANDROID_HOME/cmdline-tools"
+            curl -sS -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q cmdline-tools.zip
+            mv cmdline-tools latest
+            rm cmdline-tools.zip
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" "platform-tools" "platforms;android-37" "build-tools;37.0.0"
       - name: Unit tests
         working-directory: PipePipeClient
         run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --stacktrace
