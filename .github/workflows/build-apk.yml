@@ -1,0 +1,22 @@
+# Put this file in the PipePipeClient repo (fork) at .github/workflows/build-apk.yml
+name: Build debug APK
+on: [workflow_dispatch, push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: PipePipeClient, submodules: recursive }
+      - uses: actions/checkout@v4
+        with: { repository: InfinityLoop1308/PipePipeExtractor, path: PipePipeExtractor }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - uses: android-actions/setup-android@v3
+      - name: Unit tests
+        working-directory: PipePipeClient
+        run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --stacktrace
+      - name: Build
+        working-directory: PipePipeClient
+        run: ./gradlew :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with: { name: apk-debug, path: "PipePipeClient/app/build/outputs/apk/**/*.apk" }
