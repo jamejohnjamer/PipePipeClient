@@ -106,10 +106,10 @@ class ErrorInfo @JvmOverloads constructor(
             }
         }
 
-        fun throwableToStringList(throwable: Throwable) = arrayOf(getStackTrace(throwable))
+        fun throwableToStringList(throwable: Throwable) = arrayOf(ErrorTraceLimits.capTrace(getStackTrace(throwable)))
 
         fun throwableListToStringList(throwable: List<Throwable>) =
-            Array(min(throwable.size, 20)) { i -> getStackTrace(throwable[i]) }
+            Array(min(throwable.size, ErrorTraceLimits.MAX_TRACES)) { i -> ErrorTraceLimits.capTrace(getStackTrace(throwable[i])) }
 
         private fun getInfoServiceName(info: Info?) =
             if (info == null) SERVICE_NONE else getServiceNameFromId(info.serviceId)
