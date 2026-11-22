@@ -21,13 +21,15 @@ import org.schabi.newpipe.extractor.stream.SubtitlesStream;
 import org.schabi.newpipe.extractor.stream.VideoStream;
 
 import java.io.Serializable;
+import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
-import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import us.shandian.giga.util.Utility;
 
@@ -245,44 +247,44 @@ public class StreamItemAdapter<T extends Stream, U extends Stream> extends BaseA
             Arrays.fill(streamSizes, -2);
         }
 
+        /** Max parallel size probes: fast results, but never a connection flood. */
+        private static final int MAX_PARALLEL_SIZE_PROBES = 6;
+
         /**
-         * Helper method to fetch the sizes of all the streams in a wrapper.
+         * Fetches the sizes of all streams in a wrapper, in parallel (bounded) and
+         * incrementally: emits {@code true} each time one more size is known, so the UI
+         * can refresh as results arrive instead of waiting for the slowest stream.
+         * A failing probe only marks that one stream as unknown (-1).
          *
          * @param <X> the stream type's class extending {@link Stream}
          * @param streamsWrapper the wrapper
-         * @return a {@link Single} that returns a boolean indicating if any elements were changed
+         * @return an {@link Observable} emitting on the main thread after each size is set
          */
-        public static <X extends Stream> Single<Boolean> fetchSizeForWrapper(
+        public static <X extends Stream> Observable<Boolean> fetchSizeForWrapper(
                 final StreamSizeWrapper<X> streamsWrapper) {
-            final Callable<Boolean> fetchAndSet = () -> {
-                boolean hasChanged = false;
-                for (final X stream : streamsWrapper.getStreamsList()) {
-                    if (streamsWrapper.getSizeInBytes(stream) > -2) {
-                        continue;
-                    }
-                    if (stream.getDeliveryMethod() == DeliveryMethod.HLS) {
-                        streamsWrapper.setSize(stream, -1);
-                        hasChanged = true;
-                        continue;
-                    }
-                    if (stream.getDeliveryMethod() == DeliveryMethod.SABR) {
-                        streamsWrapper.setSize(stream, getSabrContentLength(stream));
-                        hasChanged = true;
-                        continue;
-                    }
-
-                    final long contentLength = DownloaderImpl.getInstance().getContentLength(
-                            stream.getUrl());
-                    streamsWrapper.setSize(stream, contentLength);
-                    hasChanged = true;
-                }
-                return hasChanged;
-            };
-
-            return Single.fromCallable(fetchAndSet)
-                    .subscribeOn(Schedulers.io())
+            return Observable.fromIterable(new ArrayList<>(streamsWrapper.getStreamsList()))
+                    .filter(stream -> streamsWrapper.getSizeInBytes(stream) <= -2)
+                    .flatMap(stream -> Observable
+                            .fromCallable(() -> new AbstractMap.SimpleEntry<X, Long>(
+                                    stream, probeSize(stream)))
+                            .subscribeOn(Schedulers.io())
+                            .onErrorReturnItem(new AbstractMap.SimpleEntry<X, Long>(stream, -1L)),
+                            MAX_PARALLEL_SIZE_PROBES)
                     .observeOn(AndroidSchedulers.mainThread())
-                    .onErrorReturnItem(true);
+                    .map(entry -> {
+                        streamsWrapper.setSize(entry.getKey(), entry.getValue());
+                        return true;
+                    });
+        }
+
+        private static long probeSize(final Stream stream) throws IOException {
+            if (stream.getDeliveryMethod() == DeliveryMethod.HLS) {
+                return -1;
+            }
+            if (stream.getDeliveryMethod() == DeliveryMethod.SABR) {
+                return getSabrContentLength(stream);
+            }
+            return DownloaderImpl.getInstance().getContentLength(stream.getUrl());
         }
 
         private static long getSabrContentLength(final Stream stream) {
