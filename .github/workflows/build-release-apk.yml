@@ -1,0 +1,71 @@
+# Builds a RELEASE (optimized, no LeakCanary/Stetho, not debuggable) APK. Use this one for daily use.
+# Put in your PipePipeClient fork at .github/workflows/build-release-apk.yml. Run it from the Actions tab.
+# Fixes vs the draft in the patch (2026-11-22):
+# - setup-java is 25, not 21 — the project needs Java 25 (source/targetCompatibility VERSION_25).
+# - android-actions/setup-android@v3 was REMOVED: it runs `sdkmanager tools`, which Google
+#   removed ("Failed to find package 'tools'"). SDK is set up by hand with cmdline-tools.
+# - The platform package is "android-37.1", NOT "android-37" (Android 17 = release 37 minor 1).
+# - Signing is passed as ENV vars (KEY_PATH, KEY_STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD)
+#   because app/build.gradle reads them with System.getenv — the -P Gradle properties in
+#   the draft are ignored by the build script and would have produced an UNSIGNED apk.
+name: Build release APK
+on: [workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: PipePipeClient, submodules: recursive }
+      - uses: actions/checkout@v4
+        with: { repository: InfinityLoop1308/PipePipeExtractor, path: PipePipeExtractor }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 25 }
+      - name: Set up Android SDK 37
+        run: |
+          SDKMANAGER=""
+          for d in "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/cmdline-tools/16.0/bin" "$ANDROID_HOME/cmdline-tools/15.0/bin"; do
+            if [ -x "$d/sdkmanager" ]; then SDKMANAGER="$d/sdkmanager"; break; fi
+          done
+          if [ -z "$SDKMANAGER" ]; then
+            mkdir -p "$ANDROID_HOME/cmdline-tools"
+            cd "$ANDROID_HOME/cmdline-tools"
+            curl -sS -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q cmdline-tools.zip
+            mv cmdline-tools latest
+            rm cmdline-tools.zip
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          yes | "$SDKMANAGER" --licenses
+          "$SDKMANAGER" "platform-tools" "platforms;android-37.1" "build-tools;37.0.0"
+      - name: Signing key (your secret, or a new one if none is set yet)
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/my.jks"; PASS="$KEYSTORE_PASSWORD"
+          else
+            PASS="$(openssl rand -hex 12)"
+            keytool -genkeypair -keystore "$RUNNER_TEMP/my.jks" -alias mykey -keyalg RSA -keysize 4096 \
+              -validity 10000 -storepass "$PASS" -keypass "$PASS" -dname "CN=My PipePipe Fork"
+            mkdir -p keep-this && cp "$RUNNER_TEMP/my.jks" keep-this/my.jks && echo "$PASS" > keep-this/PASSWORD.txt
+            echo "NEW_KEY=1" >> "$GITHUB_ENV"
+          fi
+          echo "KS_PATH=$RUNNER_TEMP/my.jks" >> "$GITHUB_ENV"; echo "KS_PASS=$PASS" >> "$GITHUB_ENV"
+          echo "::add-mask::$PASS"
+      - name: Build release
+        working-directory: PipePipeClient
+        env:
+          KEY_PATH: ${{ env.KS_PATH }}
+          KEY_STORE_PASSWORD: ${{ env.KS_PASS }}
+          KEY_ALIAS: mykey
+          KEY_PASSWORD: ${{ env.KS_PASS }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --stacktrace
+      - uses: actions/upload-artifact@v4
+        with: { name: apk-release, path: "PipePipeClient/app/build/outputs/apk/release/*.apk" }
+      - name: Keep your new signing key (first run only)
+        if: env.NEW_KEY == '1'
+        uses: actions/upload-artifact@v4
+        with: { name: KEEP-THIS-signing-key, path: keep-this/ }
