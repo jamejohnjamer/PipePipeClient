@@ -6,6 +6,8 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
 import com.xwray.groupie.Group
+import androidx.preference.PreferenceManager
+import io.reactivex.rxjava3.core.Flowable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import org.schabi.newpipe.local.feed.FeedDatabaseManager
 import org.schabi.newpipe.local.subscription.item.ChannelItem
@@ -23,6 +25,35 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
     val feedGroupsLiveData: LiveData<List<Group>> = mutableFeedGroupsLiveData
 
     private val searchQuery = MutableLiveData<String>()
+
+    /** Sort modes for the subscription list. "Added" order uses the subscription row id
+     *  (auto-increment), i.e. the order in which you subscribed. */
+    enum class SortMode(val label: String) {
+        NEWEST_ADDED("Newest subscribed first"),
+        OLDEST_ADDED("Oldest subscribed first"),
+        NAME_AZ("Name A-Z"),
+        NAME_ZA("Name Z-A"),
+        MOST_SUBSCRIBERS("Most subscribers"),
+        FEWEST_SUBSCRIBERS("Fewest subscribers")
+    }
+
+    private val sortModePrefKey = "subscription_sort_mode"
+    private val sortMode = MutableLiveData<SortMode>(
+        runCatching {
+            SortMode.valueOf(
+                PreferenceManager.getDefaultSharedPreferences(application)
+                    .getString(sortModePrefKey, SortMode.NAME_AZ.name) ?: SortMode.NAME_AZ.name
+            )
+        }.getOrDefault(SortMode.NAME_AZ)
+    )
+
+    fun currentSortMode(): SortMode = sortMode.value ?: SortMode.NAME_AZ
+
+    fun updateSortMode(mode: SortMode) {
+        PreferenceManager.getDefaultSharedPreferences(getApplication())
+            .edit().putString(sortModePrefKey, mode.name).apply()
+        sortMode.value = mode
+    }
     val filteredSubscriptionsLiveData = MediatorLiveData<List<Group>>()
 
     init {
@@ -30,6 +61,13 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
         filteredSubscriptionsLiveData.addSource(stateLiveData) { state ->
             if (state is SubscriptionState.LoadedState) {
                 applyFilter(state.subscriptions, searchQuery.value)
+            }
+        }
+
+        filteredSubscriptionsLiveData.addSource(sortMode) {
+            val currentState = stateLiveData.value
+            if (currentState is SubscriptionState.LoadedState) {
+                applyFilter(currentState.subscriptions, searchQuery.value)
             }
         }
 
@@ -50,28 +88,43 @@ class SubscriptionViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun applyFilter(subscriptions: List<Group>, query: String?) {
-        if (query.isNullOrBlank()) {
-            filteredSubscriptionsLiveData.value = subscriptions
-            return
-        }
-
-        val lowercaseQuery = query.lowercase()
-        val filteredList = subscriptions.filter { group ->
-            when (group) {
-                is ChannelItem -> {
+        val lowercaseQuery = query?.lowercase().orEmpty()
+        val others = ArrayList<Group>()
+        val channels = ArrayList<ChannelItem>()
+        for (group in subscriptions) {
+            if (group is ChannelItem) {
+                if (lowercaseQuery.isBlank() ||
                     group.infoItem.name.lowercase().contains(lowercaseQuery)
+                ) {
+                    channels.add(group)
                 }
-                else -> true // Keep other items
+            } else {
+                others.add(group) // keep other items
             }
         }
 
-        filteredSubscriptionsLiveData.value = filteredList
+        val sorted: List<ChannelItem> = when (currentSortMode()) {
+            SortMode.NEWEST_ADDED -> channels.sortedByDescending { it.subscriptionId }
+            SortMode.OLDEST_ADDED -> channels.sortedBy { it.subscriptionId }
+            SortMode.NAME_AZ -> channels.sortedBy { it.infoItem.name.lowercase() }
+            SortMode.NAME_ZA -> channels.sortedByDescending { it.infoItem.name.lowercase() }
+            SortMode.MOST_SUBSCRIBERS -> channels.sortedByDescending { it.infoItem.subscriberCount }
+            SortMode.FEWEST_SUBSCRIBERS -> channels.sortedBy {
+                if (it.infoItem.subscriberCount < 0) Long.MAX_VALUE else it.infoItem.subscriberCount
+            }
+        }
+
+        filteredSubscriptionsLiveData.value = others + sorted
     }
 
-
-    private var feedGroupItemsDisposable = feedDatabaseManager.groups()
+    private var feedGroupItemsDisposable = Flowable.combineLatest(
+        feedDatabaseManager.groups(),
+        feedDatabaseManager.groupSubscriptionCounts().startWithItem(emptyList())
+    ) { groups, counts ->
+        val countById = counts.associate { it.groupId to it.memberCount }
+        groups.map { FeedGroupCardItem(it, countById[it.uid] ?: 0) }
+    }
         .throttleLatest(DEFAULT_THROTTLE_TIMEOUT, TimeUnit.MILLISECONDS)
-        .map { it.map(::FeedGroupCardItem) }
         .subscribeOn(Schedulers.io())
         .subscribe(
             { mutableFeedGroupsLiveData.postValue(it) },
