@@ -36,6 +36,9 @@ abstract class FeedGroupDAO {
     @Query("DELETE FROM feed_group WHERE uid = :groupId")
     abstract fun delete(groupId: Long): Int
 
+    @Query("SELECT group_id AS group_id, COUNT(*) AS member_count FROM feed_group_subscription_join GROUP BY group_id")
+    abstract fun getSubscriptionCounts(): Flowable<List<GroupSubscriptionCount>>
+
     @Query("SELECT subscription_id FROM feed_group_subscription_join WHERE group_id = :groupId")
     abstract fun getSubscriptionIdsFor(groupId: Long): Flowable<List<Long>>
 
@@ -65,3 +68,9 @@ abstract class FeedGroupDAO {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     protected abstract fun insertInternal(feedGroupEntity: FeedGroupEntity): Long
 }
+
+/** Number of channels per feed group (Room query result, not a table). */
+data class GroupSubscriptionCount(
+    @androidx.room.ColumnInfo(name = "group_id") val groupId: Long,
+    @androidx.room.ColumnInfo(name = "member_count") val memberCount: Int
+)
