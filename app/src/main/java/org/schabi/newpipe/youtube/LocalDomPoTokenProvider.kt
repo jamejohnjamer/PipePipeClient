@@ -231,7 +231,9 @@ object LocalDomPoTokenProvider {
                 appContext = context.applicationContext
             }
         }
-        warmUp()
+        // No warmUp() here: it loads youtube.com in a hidden WebView and runs BotGuard right at
+        // app start, which saturates a mid-range CPU for a long time. getState() starts the same
+        // initialization lazily on the first request that needs a token (on a background thread).
     }
 
     private const val TAG = "YoutubeGlobalPoToken"
