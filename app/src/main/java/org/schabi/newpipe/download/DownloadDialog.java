@@ -767,8 +767,23 @@ public class DownloadDialog extends DialogFragment
         );
     }
 
+    @Nullable
+    private StoredDirectoryHelper reloadStorageFromPrefs(@androidx.annotation.StringRes final int keyRes,
+                                                         final String tag) {
+        try {
+            final String path = PreferenceManager.getDefaultSharedPreferences(context)
+                    .getString(getString(keyRes), null);
+            if (path == null || path.isEmpty() || path.charAt(0) == File.separatorChar) {
+                return null;
+            }
+            return new StoredDirectoryHelper(context, Uri.parse(path), tag);
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+
     private void prepareSelectedDownload() {
-        final StoredDirectoryHelper mainStorage;
+        StoredDirectoryHelper mainStorage;
         final MediaFormat format;
         final String selectedMediaType;
 
@@ -805,16 +820,41 @@ public class DownloadDialog extends DialogFragment
             throw new RuntimeException("No stream selected");
         }
 
-        if (!askForSavePath
-                && (mainStorage == null
-                || mainStorage.isDirect() == NewPipeSettings.useStorageAccessFramework(context)
-                || mainStorage.isInvalidSafStorage())) {
+        // The service-cached folder can be stale (service restarted, preference changed after the
+        // dialog bound). Re-read the saved folder directly before nagging the user again.
+        if (!askForSavePath && mainStorage == null) {
+            final boolean audio =
+                    dialogBinding.videoAudioGroup.getCheckedRadioButtonId() == R.id.audio_button;
+            mainStorage = reloadStorageFromPrefs(
+                    audio ? R.string.download_path_audio_key : R.string.download_path_video_key,
+                    audio ? DownloadManager.TAG_AUDIO : DownloadManager.TAG_VIDEO);
+            if (mainStorage != null) {
+                if (audio) {
+                    mainStorageAudio = mainStorage;
+                } else {
+                    mainStorageVideo = mainStorage;
+                }
+            }
+        }
+
+        final String folderProblem;
+        if (mainStorage == null) {
+            folderProblem = "folder not saved or not readable";
+        } else if (mainStorage.isDirect() == NewPipeSettings.useStorageAccessFramework(context)) {
+            folderProblem = "folder type does not match storage mode";
+        } else if (mainStorage.isInvalidSafStorage()) {
+            folderProblem = "access to the folder was lost";
+        } else {
+            folderProblem = null;
+        }
+
+        if (!askForSavePath && folderProblem != null) {
             // Pick new download folder if one of:
             // - Download folder is not set
             // - Download folder uses SAF while SAF is disabled
             // - Download folder doesn't use SAF while SAF is enabled
             // - Download folder uses SAF but the user manually revoked access to it
-            Toast.makeText(context, getString(R.string.no_dir_yet),
+            Toast.makeText(context, getString(R.string.no_dir_yet) + " (" + folderProblem + ")",
                     Toast.LENGTH_LONG).show();
 
             if (dialogBinding.videoAudioGroup.getCheckedRadioButtonId() == R.id.audio_button) {
