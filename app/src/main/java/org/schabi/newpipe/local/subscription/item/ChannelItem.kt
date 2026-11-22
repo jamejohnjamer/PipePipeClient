@@ -13,7 +13,7 @@ import org.schabi.newpipe.util.PicassoHelper
 
 class ChannelItem(
     val infoItem: ChannelInfoItem,
-    private val subscriptionId: Long = -1L,
+    val subscriptionId: Long = -1L,
     var itemVersion: ItemVersion = ItemVersion.NORMAL,
     var gesturesListener: OnClickGesture<ChannelInfoItem>? = null
 ) : Item<GroupieViewHolder>() {
