@@ -284,7 +284,30 @@ public class StreamItemAdapter<T extends Stream, U extends Stream> extends BaseA
             if (stream.getDeliveryMethod() == DeliveryMethod.SABR) {
                 return getSabrContentLength(stream);
             }
+            // googlevideo URLs usually carry the exact size (clen=...): no network request needed
+            final long fromUrl = contentLengthFromUrl(stream.getUrl());
+            if (fromUrl > 0) {
+                return fromUrl;
+            }
             return DownloaderImpl.getInstance().getContentLength(stream.getUrl());
+        }
+
+        private static final java.util.regex.Pattern CLEN_PATTERN =
+                java.util.regex.Pattern.compile("[?&/]clen[=/](\\d{1,12})");
+
+        static long contentLengthFromUrl(final String url) {
+            if (url == null) {
+                return -1;
+            }
+            final java.util.regex.Matcher m = CLEN_PATTERN.matcher(url);
+            if (m.find()) {
+                try {
+                    return Long.parseLong(m.group(1));
+                } catch (final NumberFormatException ignored) {
+                    return -1;
+                }
+            }
+            return -1;
         }
 
         private static long getSabrContentLength(final Stream stream) {
