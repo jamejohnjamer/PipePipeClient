@@ -450,7 +450,8 @@ public class DownloadDialog extends DialogFragment
                 .subscribe(result -> {
                     if (dialogBinding.videoAudioGroup.getCheckedRadioButtonId()
                             == R.id.video_button) {
-                        setupVideoSpinner();
+                        // sizes now arrive one by one: refresh rows only, keep selection/dropdown
+                        videoStreamsAdapter.notifyDataSetChanged();
                     }
                 }, throwable -> ErrorUtil.showSnackbar(context,
                         new ErrorInfo(throwable, UserAction.DOWNLOAD_OPEN_DIALOG,
@@ -460,7 +461,8 @@ public class DownloadDialog extends DialogFragment
                 .subscribe(result -> {
                     if (dialogBinding.videoAudioGroup.getCheckedRadioButtonId()
                             == R.id.audio_button) {
-                        setupAudioSpinner();
+                        // sizes now arrive one by one: refresh rows only, keep selection/dropdown
+                        audioStreamsAdapter.notifyDataSetChanged();
                     }
                 }, throwable -> ErrorUtil.showSnackbar(context,
                         new ErrorInfo(throwable, UserAction.DOWNLOAD_OPEN_DIALOG,
@@ -470,7 +472,8 @@ public class DownloadDialog extends DialogFragment
                 .subscribe(result -> {
                     if (dialogBinding.videoAudioGroup.getCheckedRadioButtonId()
                             == R.id.subtitle_button) {
-                        setupSubtitleSpinner();
+                        // sizes now arrive one by one: refresh rows only, keep selection/dropdown
+                        subtitleStreamsAdapter.notifyDataSetChanged();
                     }
                 }, throwable -> ErrorUtil.showSnackbar(context,
                         new ErrorInfo(throwable, UserAction.DOWNLOAD_OPEN_DIALOG,
