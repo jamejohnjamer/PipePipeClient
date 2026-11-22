@@ -38,6 +38,8 @@ class FeedDatabaseManager(context: Context) {
 
     fun groups() = feedGroupTable.getAll()
 
+    fun groupSubscriptionCounts() = feedGroupTable.getSubscriptionCounts()
+
     fun database() = database
 
     fun getStreams(
