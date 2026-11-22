@@ -139,6 +139,29 @@ class SubscriptionFragment : BaseStateFragment<SubscriptionState>() {
 
         activity.supportActionBar?.setDisplayShowTitleEnabled(true)
         activity.supportActionBar?.setTitle(R.string.tab_subscriptions)
+
+        menu.add(Menu.NONE, MENU_ID_SORT_SUBSCRIPTIONS, Menu.NONE, "Sort subscriptions")
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+        if (item.itemId == MENU_ID_SORT_SUBSCRIPTIONS) {
+            showSortDialog()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun showSortDialog() {
+        val modes = SubscriptionViewModel.SortMode.values()
+        val labels = modes.map { it.label }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("Sort subscriptions")
+            .setSingleChoiceItems(labels, modes.indexOf(viewModel.currentSortMode())) { dialog, which ->
+                viewModel.updateSortMode(modes[which])
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun setupBroadcastReceiver() {
@@ -419,5 +442,9 @@ class SubscriptionFragment : BaseStateFragment<SubscriptionState>() {
     override fun hideLoading() {
         super.hideLoading()
         binding.itemsList.animate(true, 200)
+    }
+
+    companion object {
+        private const val MENU_ID_SORT_SUBSCRIPTIONS = 4711
     }
 }
