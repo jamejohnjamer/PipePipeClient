@@ -7,7 +7,7 @@ import org.schabi.newpipe.database.feed.model.FeedGroupEntity
 import org.schabi.newpipe.databinding.FeedGroupCardItemBinding
 import org.schabi.newpipe.local.subscription.FeedGroupIcon
 
-data class FeedGroupCardItem(
+data class FeedGroupCardItem @JvmOverloads constructor(
     val groupId: Long = FeedGroupEntity.GROUP_ALL_ID,
     val name: String,
     val icon: FeedGroupIcon,
