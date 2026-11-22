@@ -99,6 +99,7 @@ public class App extends MultiDexApplication {
         }
 
         EdgeToEdgeWorkaround.apply();
+        org.schabi.newpipe.error.ExitReasonReporter.captureAsync(this);
 
         if (ProcessPhoenix.isPhoenixProcess(this)) {
             Log.i(TAG, "This is a phoenix process! "
