@@ -551,7 +551,15 @@ public class DownloadManager {
             DownloadMission pending = getPendingMission(storage);
 
             if (pending == null) {
-                if (getFinishedMissionIndex(storage) >= 0) return MissionState.Finished;
+                // Called from the UI thread: only compare in memory. The validating variant
+                // does file/SAF I/O for every finished mission while holding this lock, which
+                // blocks the main thread (ANR) whenever a download thread needs the same lock.
+                // Worst case a deleted file is reported as Finished -> harmless overwrite prompt.
+                for (int i = 0; i < mMissionsFinished.size(); i++) {
+                    if (mMissionsFinished.get(i).storage.equals(storage)) {
+                        return MissionState.Finished;
+                    }
+                }
             } else {
                 if (pending.isFinished()) {
                     return MissionState.Finished;// this never should happen (race-condition)
