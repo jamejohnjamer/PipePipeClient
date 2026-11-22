@@ -46,6 +46,30 @@ object RecentErrors {
         }
     }
 
+    /** Records a non-exception event such as an ANR or a background kill (detail is size-capped). */
+    @JvmStatic
+    @Synchronized
+    fun recordNote(context: Context, action: String, summary: String, detail: String) {
+        try {
+            val entry = JSONObject()
+                .put("t", System.currentTimeMillis())
+                .put("a", action.take(80))
+                .put("r", "")
+                .put("s", summary.take(MAX_SUMMARY))
+                .put("d", detail.take(MAX_DETAIL * 3))
+            val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val old = JSONArray(prefs.getString(KEY, "[]"))
+            val updated = JSONArray().put(entry)
+            var i = 0
+            while (i < old.length() && updated.length() < MAX_ENTRIES) {
+                updated.put(old.get(i))
+                i++
+            }
+            prefs.edit().putString(KEY, updated.toString()).apply()
+        } catch (ignored: Exception) {
+        }
+    }
+
     @JvmStatic
     @Synchronized
     fun all(context: Context): List<Entry> = try {
@@ -84,6 +108,14 @@ object RecentErrors {
             .setMessage(text)
             .setPositiveButton(android.R.string.ok, null)
             .setNeutralButton("Clear") { _, _ -> clear(context) }
+            .setNegativeButton("Copy all") { _, _ ->
+                val full = entries.joinToString("\n\n----\n\n") {
+                    val whenText = DateFormat.format("yyyy-MM-dd HH:mm:ss", Date(it.time))
+                    "$whenText [${it.action}] ${it.request}\n${it.summary}\n${it.detail}"
+                }
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("PipePipe recent errors", full))
+            }
             .show()
     }
 }
