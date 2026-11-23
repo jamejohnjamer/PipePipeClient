@@ -89,32 +89,16 @@ public class StreamInfoItemHolder extends InfoItemHolder {
             itemDurationView.setBackgroundColor(ContextCompat.getColor(itemBuilder.getContext(),
                     R.color.paid_video_background_color));
             itemDurationView.setVisibility(View.VISIBLE);
-            final StreamStateEntity paidState = historyRecordManager.loadStreamState(infoItem)
-                    .blockingGet()[0];
-            if (paidState != null && item.getDuration() > 0) {
-                itemProgressView.setVisibility(View.VISIBLE);
-                itemProgressView.setMax((int) item.getDuration());
-                itemProgressView.setProgress((int) TimeUnit.MILLISECONDS
-                        .toSeconds(paidState.getProgressMillis()));
-            } else {
-                itemProgressView.setVisibility(View.GONE);
-            }
+            itemProgressView.setVisibility(View.GONE);
+            StreamProgressLoader.load(itemProgressView, historyRecordManager, infoItem, item, false);
         } else if (item.getDuration() > 0) {
             itemDurationView.setText(Localization.getDurationString(item.getDuration()));
             itemDurationView.setBackgroundColor(ContextCompat.getColor(itemBuilder.getContext(),
                     R.color.duration_background_color));
             itemDurationView.setVisibility(View.VISIBLE);
 
-            final StreamStateEntity state = historyRecordManager.loadStreamState(infoItem)
-                    .blockingGet()[0];
-            if (state != null) {
-                itemProgressView.setVisibility(View.VISIBLE);
-                itemProgressView.setMax((int) item.getDuration());
-                itemProgressView.setProgress((int) TimeUnit.MILLISECONDS
-                        .toSeconds(state.getProgressMillis()));
-            } else {
-                itemProgressView.setVisibility(View.GONE);
-            }
+            itemProgressView.setVisibility(View.GONE);
+            StreamProgressLoader.load(itemProgressView, historyRecordManager, infoItem, item, false);
         } else if (item.getStreamType() == StreamType.LIVE_STREAM
                 || item.getStreamType() == StreamType.AUDIO_LIVE_STREAM) {
             itemDurationView.setText(R.string.duration_live);
@@ -157,21 +141,7 @@ public class StreamInfoItemHolder extends InfoItemHolder {
                             final HistoryRecordManager historyRecordManager) {
         final StreamInfoItem item = (StreamInfoItem) infoItem;
 
-        final StreamStateEntity state = historyRecordManager.loadStreamState(infoItem).blockingGet()[0];
-        if (state != null && item.getDuration() > 0
-                && item.getStreamType() != StreamType.LIVE_STREAM) {
-            itemProgressView.setMax((int) item.getDuration());
-            if (itemProgressView.getVisibility() == View.VISIBLE) {
-                itemProgressView.setProgressAnimated((int) TimeUnit.MILLISECONDS
-                        .toSeconds(state.getProgressMillis()));
-            } else {
-                itemProgressView.setProgress((int) TimeUnit.MILLISECONDS
-                        .toSeconds(state.getProgressMillis()));
-                ViewUtils.animate(itemProgressView, true, 500);
-            }
-        } else if (itemProgressView.getVisibility() == View.VISIBLE) {
-            ViewUtils.animate(itemProgressView, false, 500);
-        }
+        StreamProgressLoader.load(itemProgressView, historyRecordManager, infoItem, item, true);
     }
 
     private String getStreamInfoDetailLine(final StreamInfoItem infoItem) {
