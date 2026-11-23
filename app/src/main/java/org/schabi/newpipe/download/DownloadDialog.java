@@ -379,7 +379,21 @@ public class DownloadDialog extends DialogFragment
 
         toolbar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.okay) {
-                prepareSelectedDownload();
+                if (okayBusy) {
+                    return true; // ignore double taps while the folder is being checked
+                }
+                okayBusy = true;
+                // All SAF/file checks run off the UI thread (a confirmed ANR source).
+                IO_EXECUTOR.execute(() -> {
+                    try {
+                        prepareSelectedDownload();
+                    } catch (final Exception e) {
+                        Log.e(TAG, "prepareSelectedDownload failed", e);
+                        showFailedDialog(R.string.general_error);
+                    } finally {
+                        okayBusy = false;
+                    }
+                });
                 return true;
             }
             return false;
@@ -538,21 +552,21 @@ public class DownloadDialog extends DialogFragment
 
         if (FilePickerActivityHelper.isOwnFileUri(context, result.getData().getData())) {
             final File file = Utils.getFileForUri(result.getData().getData());
-            checkSelectedDownload(null, Uri.fromFile(file), file.getName(),
-                    StoredFileHelper.DEFAULT_MIME);
+            IO_EXECUTOR.execute(() -> checkSelectedDownload(null, Uri.fromFile(file),
+                    file.getName(), StoredFileHelper.DEFAULT_MIME));
             return;
         }
 
-        final DocumentFile docFile
-                = DocumentFile.fromSingleUri(context, result.getData().getData());
-        if (docFile == null) {
-            showFailedDialog(R.string.general_error);
-            return;
-        }
-
-        // check if the selected file was previously used
-        checkSelectedDownload(null, result.getData().getData(), docFile.getName(),
-                docFile.getType());
+        final Uri savedUri = result.getData().getData();
+        IO_EXECUTOR.execute(() -> {
+            final DocumentFile docFile = DocumentFile.fromSingleUri(context, savedUri);
+            if (docFile == null) {
+                showFailedDialog(R.string.general_error);
+                return;
+            }
+            // check if the selected file was previously used
+            checkSelectedDownload(null, savedUri, docFile.getName(), docFile.getType());
+        });
     }
 
     private void requestDownloadPickFolderResult(final ActivityResult result,
@@ -578,14 +592,17 @@ public class DownloadDialog extends DialogFragment
         PreferenceManager.getDefaultSharedPreferences(context).edit()
                 .putString(key, uri.toString()).apply();
 
-        try {
-            final StoredDirectoryHelper mainStorage
-                    = new StoredDirectoryHelper(context, uri, tag);
-            checkSelectedDownload(mainStorage, mainStorage.findFile(filenameTmp),
-                    filenameTmp, mimeTmp);
-        } catch (final IOException e) {
-            showFailedDialog(R.string.general_error);
-        }
+        final Uri pickedUri = uri;
+        IO_EXECUTOR.execute(() -> {
+            try {
+                final StoredDirectoryHelper mainStorage
+                        = new StoredDirectoryHelper(context, pickedUri, tag);
+                checkSelectedDownload(mainStorage, mainStorage.findFile(filenameTmp),
+                        filenameTmp, mimeTmp);
+            } catch (final IOException e) {
+                showFailedDialog(R.string.general_error);
+            }
+        });
     }
 
 
@@ -748,23 +765,39 @@ public class DownloadDialog extends DialogFragment
         return FilenameUtils.createFilename(context, str.isEmpty() ? currentInfo.getName() : str);
     }
 
+    /** Single background thread for all storage (SAF/file) work of this dialog: never the UI thread. */
+    private static final java.util.concurrent.ExecutorService IO_EXECUTOR =
+            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                final Thread t = new Thread(r, "download-dialog-io");
+                t.setDaemon(true);
+                return t;
+            });
+
+    private volatile boolean okayBusy = false;
+
+    private void onMain(final Runnable r) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(r);
+    }
+
     private void showFailedDialog(@StringRes final int msg) {
-        assureCorrectAppLanguage(getContext());
-        new AlertDialog.Builder(context)
-                .setTitle(R.string.general_error)
-                .setMessage(msg)
-                .setNegativeButton(getString(R.string.ok), null)
-                .create()
-                .show();
+        onMain(() -> {
+            assureCorrectAppLanguage(getContext());
+            new AlertDialog.Builder(context)
+                    .setTitle(R.string.general_error)
+                    .setMessage(msg)
+                    .setNegativeButton(getString(R.string.ok), null)
+                    .create()
+                    .show();
+        });
     }
 
     private void launchDirectoryPicker(final ActivityResultLauncher<Intent> launcher) {
-        NoFileManagerSafeGuard.launchSafe(
+        onMain(() -> NoFileManagerSafeGuard.launchSafe(
                 launcher,
                 StoredDirectoryHelper.getPicker(context),
                 TAG,
                 context
-        );
+        ));
     }
 
     @Nullable
@@ -854,8 +887,8 @@ public class DownloadDialog extends DialogFragment
             // - Download folder uses SAF while SAF is disabled
             // - Download folder doesn't use SAF while SAF is enabled
             // - Download folder uses SAF but the user manually revoked access to it
-            Toast.makeText(context, getString(R.string.no_dir_yet) + " (" + folderProblem + ")",
-                    Toast.LENGTH_LONG).show();
+            final String folderMsg = getString(R.string.no_dir_yet) + " (" + folderProblem + ")";
+            onMain(() -> Toast.makeText(context, folderMsg, Toast.LENGTH_LONG).show());
 
             if (dialogBinding.videoAudioGroup.getCheckedRadioButtonId() == R.id.audio_button) {
                 launchDirectoryPicker(requestDownloadPickAudioFolderLauncher);
@@ -880,12 +913,13 @@ public class DownloadDialog extends DialogFragment
                 initialPath = Uri.parse(initialSavePath.getAbsolutePath());
             }
 
-            NoFileManagerSafeGuard.launchSafe(
+            final Uri finalInitialPath = initialPath;
+            onMain(() -> NoFileManagerSafeGuard.launchSafe(
                     requestDownloadSaveAsLauncher,
-                    StoredFileHelper.getNewPicker(context, filenameTmp, mimeTmp, initialPath),
+                    StoredFileHelper.getNewPicker(context, filenameTmp, mimeTmp, finalInitialPath),
                     TAG,
                     context
-            );
+            ));
 
             return;
         }
@@ -1005,18 +1039,20 @@ public class DownloadDialog extends DialogFragment
                 case Finished:
                     askDialog.setPositiveButton(msgBtn, (dialog, which) -> {
                         dialog.dismiss();
-                        downloadManager.forgetMission(finalStorage);
-                        continueSelectedDownload(finalStorage);
+                        IO_EXECUTOR.execute(() -> {
+                            downloadManager.forgetMission(finalStorage);
+                            continueSelectedDownload(finalStorage);
+                        });
                     });
                     break;
             }
 
-            askDialog.create().show();
+            onMain(() -> askDialog.create().show());
             return;
         }
         askDialog.setPositiveButton(msgBtn, (dialog, which) -> {
             dialog.dismiss();
-
+            IO_EXECUTOR.execute(() -> {
             StoredFileHelper storageNew;
             switch (state) {
                 case Finished:
@@ -1057,8 +1093,9 @@ public class DownloadDialog extends DialogFragment
                     }
                     break;
             }
+                    });
         });
-        askDialog.create().show();
+        onMain(() -> askDialog.create().show());
     }
 
     private void continueSelectedDownload(@NonNull final StoredFileHelper storage) {
@@ -1149,10 +1186,11 @@ public class DownloadDialog extends DialogFragment
                     OutputStream outputStream = storage.context.getContentResolver().openOutputStream(storage.getUri());
                     outputStream.write(content.getBytes());
                     outputStream.close();
-                    Toast.makeText(context, getString(R.string.recaptcha_done_button),
-                            Toast.LENGTH_SHORT).show();
-
-                    dismiss();
+                    onMain(() -> {
+                        Toast.makeText(context, getString(R.string.recaptcha_done_button),
+                                Toast.LENGTH_SHORT).show();
+                        dismiss();
+                    });
                     return;
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -1205,9 +1243,10 @@ public class DownloadDialog extends DialogFragment
                 resourceDeliveryMethods, resourceManifestUrls, resourceIsUrls,
                 resourceRequestHeaders);
 
-        Toast.makeText(context, getString(R.string.download_has_started),
-                Toast.LENGTH_SHORT).show();
-
-        dismiss();
+        onMain(() -> {
+            Toast.makeText(context, getString(R.string.download_has_started),
+                    Toast.LENGTH_SHORT).show();
+            dismiss();
+        });
     }
 }
