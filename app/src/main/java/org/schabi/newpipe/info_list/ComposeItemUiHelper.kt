@@ -218,12 +218,14 @@ data class ComposeItemState(
 fun buildInfoItemState(
     context: Context,
     item: InfoItem,
-    historyRecordManager: HistoryRecordManager?
+    historyRecordManager: HistoryRecordManager?,
+    preloadedStreamState: org.schabi.newpipe.database.stream.model.StreamStateEntity? = null
 ): ComposeItemState? {
     return when (item.infoType) {
         InfoType.STREAM -> {
             item as StreamInfoItem
-            val state = historyRecordManager?.loadStreamState(item)?.blockingGet()?.firstOrNull()
+            // never block the UI thread here: callers pass preloadedStreamState (loaded off-thread)
+            val state = preloadedStreamState
             val details = buildString {
                 if (item.viewCount >= 0) {
                     append(
