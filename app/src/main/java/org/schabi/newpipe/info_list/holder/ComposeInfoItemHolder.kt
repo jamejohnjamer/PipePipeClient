@@ -30,7 +30,25 @@ class ComposeInfoItemHolder(
     private val composeView = itemView as ComposeView
 
     override fun updateFromItem(infoItem: InfoItem, historyRecordManager: HistoryRecordManager) {
-        val state = buildInfoItemState(composeView.context, infoItem, historyRecordManager) ?: return
+        // 1) draw immediately without any database access
+        render(infoItem, buildInfoItemState(composeView.context, infoItem, null) ?: return)
+
+        // 2) load the watched-progress off the main thread, then redraw this row once
+        if (infoItem is org.schabi.newpipe.extractor.stream.StreamInfoItem) {
+            composeView.tag = infoItem
+            historyRecordManager.loadStreamState(infoItem)
+                .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
+                .observeOn(io.reactivex.rxjava3.android.schedulers.AndroidSchedulers.mainThread())
+                .subscribe({ states ->
+                    if (composeView.tag !== infoItem) return@subscribe
+                    val streamState = states.firstOrNull() ?: return@subscribe
+                    buildInfoItemState(composeView.context, infoItem, null, streamState)
+                        ?.let { render(infoItem, it) }
+                }, { })
+        }
+    }
+
+    private fun render(infoItem: InfoItem, state: org.schabi.newpipe.info_list.ComposeItemState) {
         composeView.setContent {
             PipePipeComposeTheme(composeView.context) {
                 CommonItem(
