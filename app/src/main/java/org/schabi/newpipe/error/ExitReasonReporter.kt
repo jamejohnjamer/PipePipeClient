@@ -56,7 +56,9 @@ object ExitReasonReporter {
             }
             val summary = "${reasonName(reason)}: ${info.description.orEmpty()} " +
                 "(importance=${info.importance}, pss=${info.pss / 1024} MB)"
-            RecentErrors.recordNote(context, "Process exit", summary, trace)
+            val diag = DiagSampler.lastStored(context)
+            val detail = (if (diag.isNotEmpty()) "Last sample before exit (epoch ms): $diag\n\n" else "") + trace
+            RecentErrors.recordNote(context, "Process exit", summary, detail)
         }
         prefs.edit().putLong(KEY_LAST, newest).apply()
     }
