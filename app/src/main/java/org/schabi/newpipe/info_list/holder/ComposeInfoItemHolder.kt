@@ -36,8 +36,16 @@ class ComposeInfoItemHolder(
         // 2) load the watched-progress off the main thread, then redraw this row once
         if (infoItem is org.schabi.newpipe.extractor.stream.StreamInfoItem) {
             composeView.tag = infoItem
-            historyRecordManager.loadStreamState(infoItem)
-                .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
+            io.reactivex.rxjava3.core.Single.defer {
+                if (composeView.tag === infoItem) {
+                    historyRecordManager.loadStreamState(infoItem)
+                } else {
+                    io.reactivex.rxjava3.core.Single.just(
+                        emptyArray<org.schabi.newpipe.database.stream.model.StreamStateEntity>()
+                    )
+                }
+            }
+                .subscribeOn(ROW_PROGRESS_SCHEDULER)
                 .observeOn(io.reactivex.rxjava3.android.schedulers.AndroidSchedulers.mainThread())
                 .subscribe({ states ->
                     if (composeView.tag !== infoItem) return@subscribe
@@ -73,5 +81,15 @@ class ComposeInfoItemHolder(
                 )
             }
         }
+    }
+
+    private companion object {
+        /** One shared background thread for row-progress queries (see StreamProgressLoader). */
+        val ROW_PROGRESS_SCHEDULER: io.reactivex.rxjava3.core.Scheduler =
+            io.reactivex.rxjava3.schedulers.Schedulers.from(
+                java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+                    Thread(r, "row-progress-compose").apply { isDaemon = true }
+                }
+            )
     }
 }
