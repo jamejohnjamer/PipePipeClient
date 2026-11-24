@@ -24,11 +24,26 @@ import io.reactivex.rxjava3.schedulers.Schedulers;
 final class StreamProgressLoader {
     private StreamProgressLoader() { }
 
+    /**
+     * ONE background thread for all row-progress queries (never a thread per row, never the
+     * unbounded Schedulers.io() pool, which could pile up hundreds of threads waiting for the
+     * database while scrolling).
+     */
+    private static final io.reactivex.rxjava3.core.Scheduler SCHEDULER =
+            Schedulers.from(java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                final Thread t = new Thread(r, "row-progress");
+                t.setDaemon(true);
+                return t;
+            }));
+
     static void load(final AnimatedProgressBar bar, final HistoryRecordManager manager,
                      final InfoItem infoItem, final StreamInfoItem item, final boolean animate) {
         bar.setTag(item); // detects row recycling while the query is running
-        manager.loadStreamState(infoItem)
-                .subscribeOn(Schedulers.io())
+        // defer: rows that were already recycled by the time their turn comes cost nothing
+        io.reactivex.rxjava3.core.Single.defer(() -> bar.getTag() == item
+                        ? manager.loadStreamState(infoItem)
+                        : io.reactivex.rxjava3.core.Single.just(new StreamStateEntity[0]))
+                .subscribeOn(SCHEDULER)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(states -> {
                     if (bar.getTag() != item) {
