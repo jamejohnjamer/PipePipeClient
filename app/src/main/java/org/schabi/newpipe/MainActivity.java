@@ -550,7 +550,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        org.schabi.newpipe.error.DiagSampler.stop();
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
+        org.schabi.newpipe.error.DiagSampler.start(this);
         assureCorrectAppLanguage(this);
         // Change the date format to match the selected language on resume
         Localization.initPrettyTime(Localization.resolvePrettyTime(getApplicationContext()));
