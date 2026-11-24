@@ -95,7 +95,8 @@ object RecentErrors {
     @JvmStatic
     fun showDialog(context: Context) {
         val entries = all(context)
-        val text = if (entries.isEmpty()) {
+        val now = "Now: " + DiagSampler.snapshot() + "\n\n"
+        val text = now + if (entries.isEmpty()) {
             "No errors recorded."
         } else {
             entries.joinToString("\n\n") {
