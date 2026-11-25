@@ -84,6 +84,13 @@ public class DownloadMission extends Mission {
      */
     public volatile int psState;
 
+    /** Media tags written into the finished file (null = not available). */
+    public String tagArtist;
+    public String tagDate;
+    public String tagTitle;
+    public String tagChannelUrl;
+    public String tagVideoId;
+
     /**
      * the post-processing algorithm instance
      */
@@ -436,6 +443,8 @@ public class DownloadMission extends Mission {
 
         deleteThisFromFile();
         notify(DownloadManagerService.MESSAGE_FINISHED);
+        // tiny "<name>.metadata.json" next to the media; separate thread, never touches the media file
+        MetadataSidecar.writeAsync(this);
     }
 
     private void notifyPostProcessing(int state) {
