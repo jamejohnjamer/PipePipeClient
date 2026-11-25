@@ -55,14 +55,24 @@ object MetadataSidecar {
                     val dir = ioFile.parentFile ?: return@Thread
                     if (!AtomicFileWriter.write(File(dir, finalName), bytes)) {
                         Log.w(TAG, "could not write sidecar (download is unaffected)")
+                        report(context, "write to folder failed for $finalName")
                     }
                 } else if (parent != null && context != null) {
                     writeViaStorage(context, parent, tag, mediaName, finalName, bytes)
+                } else {
+                    report(context, "no folder information for $finalName (parent=$parent)")
                 }
             } catch (e: Throwable) {
                 Log.w(TAG, "could not write sidecar (download is unaffected)", e)
+                report(context, "${e.javaClass.simpleName}: ${e.message}")
             }
         }, "metadata-sidecar").apply { isDaemon = true }.start()
+    }
+
+    /** Makes sidecar problems visible in the drawer > Recent errors list (download itself is unaffected). */
+    private fun report(context: android.content.Context?, reason: String) {
+        if (context == null) return
+        org.schabi.newpipe.error.RecentErrors.recordNote(context, "Sidecar", reason, "")
     }
 
     private fun writeViaStorage(
@@ -74,7 +84,11 @@ object MetadataSidecar {
         bytes: ByteArray
     ) {
         val dir = StoredDirectoryHelper(context, parent, tag)
-        val tmp = dir.createFile(SidecarNames.tempFor(mediaName), "application/octet-stream") ?: return
+        val tmp = dir.createFile(SidecarNames.tempFor(mediaName), "application/octet-stream")
+        if (tmp == null) {
+            report(context, "could not create temp file in the download folder")
+            return
+        }
         var done = false
         try {
             tmp.stream.use { out ->
