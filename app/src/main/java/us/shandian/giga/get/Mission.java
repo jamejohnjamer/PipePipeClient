@@ -45,7 +45,19 @@ public abstract class Mission implements Serializable {
      * @return {@code true] if and only if the file is successfully deleted, otherwise, {@code false}
      */
     public boolean delete() {
-        if (storage != null) return storage.delete();
+        if (storage != null) {
+            final StoredFileHelper st = storage;
+            final String sidecarName = st.getName() == null
+                    ? null : SidecarNames.forMedia(st.getName());
+            final boolean res = st.delete();
+            if (res && sidecarName != null) {
+                // remove the matching "<name>.metadata.json" (exact name only), off the UI thread
+                final Thread t = new Thread(() -> st.deleteSibling(sidecarName), "sidecar-delete");
+                t.setDaemon(true);
+                t.start();
+            }
+            return res;
+        }
         return true;
     }
 
