@@ -231,9 +231,10 @@ object LocalDomPoTokenProvider {
                 appContext = context.applicationContext
             }
         }
-        // No warmUp() here: it loads youtube.com in a hidden WebView and runs BotGuard right at
-        // app start, which saturates a mid-range CPU for a long time. getState() starts the same
-        // initialization lazily on the first request that needs a token (on a background thread).
+        // Original behaviour restored (my round-4 change made the token lazy; getState() then blocks the
+        // first request until the hidden WebView finished, which very likely caused "Sorry something went
+        // wrong, retry" on the first video pages). Warm up at start so the token is ready when needed.
+        warmUp()
     }
 
     private const val TAG = "YoutubeGlobalPoToken"
