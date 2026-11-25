@@ -283,9 +283,23 @@ public class DirectDownloader {
             psArgs = null;
         }
 
+        // same already-loaded StreamInfo as the download dialog: no extra request
+        String tagDate = null;
+        try {
+            if (currentInfo.getUploadDate() != null) {
+                tagDate = currentInfo.getUploadDate().offsetDateTime()
+                        .withOffsetSameInstant(java.time.ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter
+                                .ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+            }
+        } catch (final Exception ignored) {
+            tagDate = null;
+        }
+
         DownloadManagerService.startMission(context, urls, storage, kind, threads,
                 currentInfo.getUrl(), psName, psArgs, nearLength, recoveryInfo,
                 resourceDeliveryMethods, resourceManifestUrls, resourceIsUrls,
-                resourceRequestHeaders);
+                resourceRequestHeaders, currentInfo.getUploaderName(), tagDate,
+                currentInfo.getName(), currentInfo.getUploaderUrl(), currentInfo.getId());
     }
 }
