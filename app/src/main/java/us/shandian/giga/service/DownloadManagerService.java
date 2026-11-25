@@ -83,6 +83,11 @@ public class DownloadManagerService extends Service {
     private static final String EXTRA_SOURCE = "DownloadManagerService.extra.source";
     private static final String EXTRA_NEAR_LENGTH = "DownloadManagerService.extra.nearLength";
     private static final String EXTRA_PATH = "DownloadManagerService.extra.storagePath";
+    private static final String EXTRA_TAG_ARTIST = "DownloadManagerService.extra.tagArtist";
+    private static final String EXTRA_TAG_DATE = "DownloadManagerService.extra.tagDate";
+    private static final String EXTRA_TAG_TITLE = "DownloadManagerService.extra.tagTitle";
+    private static final String EXTRA_TAG_CHANNEL_URL = "DownloadManagerService.extra.tagChannelUrl";
+    private static final String EXTRA_TAG_VIDEO_ID = "DownloadManagerService.extra.tagVideoId";
     private static final String EXTRA_PARENT_PATH = "DownloadManagerService.extra.storageParentPath";
     private static final String EXTRA_STORAGE_TAG = "DownloadManagerService.extra.storageTag";
     private static final String EXTRA_RECOVERY_INFO = "DownloadManagerService.extra.recoveryInfo";
@@ -388,6 +393,20 @@ public class DownloadManagerService extends Service {
                                     String[] resourceManifestUrls,
                                     boolean[] resourceIsUrls,
                                     HashMap<String, String>[] resourceRequestHeaders) {
+        startMission(context, urls, storage, kind, threads, source, psName, psArgs, nearLength,
+                recoveryInfo, resourceDeliveryMethods, resourceManifestUrls, resourceIsUrls,
+                resourceRequestHeaders, null, null, null, null, null);
+    }
+
+    public static void startMission(Context context, String[] urls, StoredFileHelper storage,
+                                    char kind, int threads, String source, String psName,
+                                    String[] psArgs, long nearLength, MissionRecoveryInfo[] recoveryInfo,
+                                    String[] resourceDeliveryMethods,
+                                    String[] resourceManifestUrls,
+                                    boolean[] resourceIsUrls,
+                                    HashMap<String, String>[] resourceRequestHeaders,
+                                    String tagArtist, String tagDate, String tagTitle,
+                                    String tagChannelUrl, String tagVideoId) {
         Intent intent = new Intent(context, DownloadManagerService.class);
         intent.setAction(Intent.ACTION_RUN);
         intent.putExtra(EXTRA_URLS, urls);
@@ -402,6 +421,12 @@ public class DownloadManagerService extends Service {
         intent.putExtra(EXTRA_RESOURCE_MANIFEST_URLS, resourceManifestUrls);
         intent.putExtra(EXTRA_RESOURCE_IS_URLS, resourceIsUrls);
         intent.putExtra(EXTRA_RESOURCE_REQUEST_HEADERS, resourceRequestHeaders);
+
+        intent.putExtra(EXTRA_TAG_ARTIST, tagArtist);
+        intent.putExtra(EXTRA_TAG_DATE, tagDate);
+        intent.putExtra(EXTRA_TAG_TITLE, tagTitle);
+        intent.putExtra(EXTRA_TAG_CHANNEL_URL, tagChannelUrl);
+        intent.putExtra(EXTRA_TAG_VIDEO_ID, tagVideoId);
 
         intent.putExtra(EXTRA_PARENT_PATH, storage.getParentUri());
         intent.putExtra(EXTRA_PATH, storage.getUri());
@@ -455,6 +480,11 @@ public class DownloadManagerService extends Service {
         mission.resourceManifestUrls = normalizeResourceMetadata(resourceManifestUrls, urls);
         mission.resourceIsUrls = normalizeResourceBooleans(resourceIsUrls, urls);
         mission.resourceRequestHeaders = resourceRequestHeaders;
+        mission.tagArtist = intent.getStringExtra(EXTRA_TAG_ARTIST);
+        mission.tagDate = intent.getStringExtra(EXTRA_TAG_DATE);
+        mission.tagTitle = intent.getStringExtra(EXTRA_TAG_TITLE);
+        mission.tagChannelUrl = intent.getStringExtra(EXTRA_TAG_CHANNEL_URL);
+        mission.tagVideoId = intent.getStringExtra(EXTRA_TAG_VIDEO_ID);
 
         if (DEBUG && ps == null && urls != null && urls.length > 1
                 && !HlsDownloadStreamHelper.containsHlsResource(mission.resourceDeliveryMethods,
