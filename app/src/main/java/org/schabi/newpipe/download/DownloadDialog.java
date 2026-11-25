@@ -1238,10 +1238,24 @@ public class DownloadDialog extends DialogFragment
             psArgs = null;
         }
 
+        // info saved in a tiny sidecar file next to the download (already-loaded StreamInfo, no network)
+        String tagDate = null;
+        try {
+            if (currentInfo.getUploadDate() != null) {
+                tagDate = currentInfo.getUploadDate().offsetDateTime()
+                        .withOffsetSameInstant(java.time.ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter
+                                .ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+            }
+        } catch (final Exception ignored) {
+            tagDate = null;
+        }
+
         DownloadManagerService.startMission(context, urls, storage, kind, threads,
                 currentInfo.getUrl(), psName, psArgs, nearLength, recoveryInfo,
                 resourceDeliveryMethods, resourceManifestUrls, resourceIsUrls,
-                resourceRequestHeaders);
+                resourceRequestHeaders, currentInfo.getUploaderName(), tagDate,
+                currentInfo.getName(), currentInfo.getUploaderUrl(), currentInfo.getId());
 
         onMain(() -> {
             Toast.makeText(context, getString(R.string.download_has_started),
