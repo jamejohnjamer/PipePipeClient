@@ -49,7 +49,8 @@ public class DownloadManager {
 
     int mPrefMaxRetry;
     boolean mPrefMeteredDownloads;
-    private static final boolean QUEUE_LIMIT_ENABLED = true;
+    /** How many downloads may run at the same time (was hard-coded to 1). */
+    private static final int MAX_CONCURRENT_DOWNLOADS = 3;
     private boolean mSelfMissionsControl;
 
     StoredDirectoryHelper mMainStorageAudio;
@@ -260,7 +261,7 @@ public class DownloadManager {
                 return;
             }
 
-            boolean start = !QUEUE_LIMIT_ENABLED || getRunningMissionsCount() < 1;
+            boolean start = getRunningMissionsCount() < MAX_CONCURRENT_DOWNLOADS;
 
             if (canDownloadInCurrentNetwork() && start) {
                 mission.start();
@@ -273,7 +274,7 @@ public class DownloadManager {
         synchronized (this) {
             if (mission.running) return;
 
-            if (getRunningMissionsCount() > 0) {
+            if (getRunningMissionsCount() >= MAX_CONCURRENT_DOWNLOADS) {
                 mission.setEnqueued(true);
                 return;
             }
@@ -462,10 +463,10 @@ public class DownloadManager {
             if (mMissionsPending.size() < 1) return false;
             if (!canDownloadInCurrentNetwork()) return false;
 
-            if (QUEUE_LIMIT_ENABLED) {
-                for (DownloadMission mission : mMissionsPending)
-                    if (!mission.isFinished() && mission.running) return true;
-            }
+            int runningNow = 0;
+            for (DownloadMission mission : mMissionsPending)
+                if (!mission.isFinished() && mission.running) runningNow++;
+            if (runningNow >= MAX_CONCURRENT_DOWNLOADS) return true;
 
             boolean flag = false;
             for (DownloadMission mission : mMissionsPending) {
@@ -475,8 +476,8 @@ public class DownloadManager {
                 resumeMission(mission);
                 if (mission.errCode != ERROR_NOTHING) continue;
 
-                if (QUEUE_LIMIT_ENABLED) return true;
                 flag = true;
+                if (++runningNow >= MAX_CONCURRENT_DOWNLOADS) return true;
             }
 
             return flag;
@@ -525,7 +526,7 @@ public class DownloadManager {
                     mission.pause();
                 } else if (!mission.running && !isMetered && mission.enqueued) {
                     mission.start();
-                    if (QUEUE_LIMIT_ENABLED) break;
+                    if (getRunningMissionsCount() >= MAX_CONCURRENT_DOWNLOADS) break;
                 }
             }
         }
