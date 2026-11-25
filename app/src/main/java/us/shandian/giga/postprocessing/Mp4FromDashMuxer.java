@@ -22,6 +22,10 @@ class Mp4FromDashMuxer extends Postprocessing {
 
     int process(SharpStream out, SharpStream... sources) throws IOException {
         Mp4FromDashWriter muxer = new Mp4FromDashWriter(sources);
+        final us.shandian.giga.get.DownloadMission m = currentMission();
+        if (m != null) {
+            muxer.setTags(m.tagArtist, m.tagTitle, m.tagDate == null ? null : m.tagDate.substring(0, Math.min(10, m.tagDate.length())));
+        }
         muxer.parseSources();
         muxer.selectTracks(0, 0);
         muxer.build(out);
