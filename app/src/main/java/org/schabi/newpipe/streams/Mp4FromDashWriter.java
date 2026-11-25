@@ -689,6 +689,68 @@ public class Mp4FromDashWriter {
         );
     }
 
+    /** iTunes-style tags (udta/meta/ilst) written INTO the moov box while muxing: no extra pass. */
+    private byte[] tagBoxes = new byte[0];
+
+    /**
+     * Sets the tags that will be embedded in the file. Empty/null values are skipped.
+     * Must be called before {@link #build(SharpStream)}.
+     */
+    public void setTags(final String artist, final String title, final String date) {
+        tagBoxes = buildTagBoxes(artist, title, date);
+    }
+
+    /** @return the complete udta box, or an empty array when there is nothing to write. */
+    static byte[] buildTagBoxes(final String artist, final String title, final String date) {
+        try {
+            final java.io.ByteArrayOutputStream items = new java.io.ByteArrayOutputStream();
+            addTagItem(items, new byte[]{(byte) 0xA9, 'A', 'R', 'T'}, artist);
+            addTagItem(items, new byte[]{(byte) 0xA9, 'n', 'a', 'm'}, title);
+            addTagItem(items, new byte[]{(byte) 0xA9, 'd', 'a', 'y'}, date);
+            if (items.size() == 0) {
+                return new byte[0];
+            }
+            final int ilstSize = 8 + items.size();
+            final int hdlrSize = 33;
+            final int metaSize = 8 + 4 + hdlrSize + ilstSize;
+            final int udtaSize = 8 + metaSize;
+            final ByteBuffer b = ByteBuffer.allocate(udtaSize);
+            b.putInt(udtaSize).putInt(0x75647461);          // udta
+            b.putInt(metaSize).putInt(0x6D657461);          // meta
+            b.putInt(0);                                     // version + flags
+            b.putInt(hdlrSize).putInt(0x68646C72);          // hdlr
+            b.putInt(0).putInt(0);                           // version/flags, predefined
+            b.putInt(0x6D646972).putInt(0x6170706C);        // 'mdir', 'appl'
+            b.putInt(0).putInt(0);                           // reserved
+            b.put((byte) 0);                                 // empty name
+            b.putInt(ilstSize).putInt(0x696C7374);          // ilst
+            b.put(items.toByteArray());
+            return b.array();
+        } catch (final Exception e) {
+            return new byte[0]; // tags are optional: never break muxing because of them
+        }
+    }
+
+    private static void addTagItem(final java.io.ByteArrayOutputStream out, final byte[] type,
+                                   final String value) throws IOException {
+        if (value == null || value.trim().isEmpty()) {
+            return;
+        }
+        String clean = value.replaceAll("[\\u0000-\\u001F]", " ").trim();
+        if (clean.length() > 300) {
+            clean = clean.substring(0, 300);
+        }
+        final byte[] v = clean.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        final int dataSize = 16 + v.length;
+        final int itemSize = 8 + dataSize;
+        final ByteBuffer b = ByteBuffer.allocate(itemSize);
+        b.putInt(itemSize).put(type);
+        b.putInt(dataSize).putInt(0x64617461);               // data
+        b.putInt(1).putInt(0);                               // UTF-8 text, locale
+        b.put(v);
+        out.write(b.array());
+    }
+
     private int makeMoov(final int[] defaultMediaTime, final TablesInfo[] tablesInfo,
                          final boolean is64) throws RuntimeException, IOException {
         final int start = auxOffset();
@@ -718,6 +780,10 @@ public class Mp4FromDashWriter {
                     new RuntimeException("bad track matrix length (expected 36) in track n°" + i);
             }
             makeTrak(i, durations[i], defaultMediaTime[i], tablesInfo[i], is64);
+        }
+
+        if (tagBoxes.length > 0) {
+            auxWrite(tagBoxes);
         }
 
         return lengthFor(start);
