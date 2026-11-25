@@ -91,6 +91,11 @@ public abstract class Postprocessing implements Serializable {
 
     private transient DownloadMission mission;
 
+    /** For muxers: the mission being processed (carries the uploader/date/title tags). */
+    final DownloadMission currentMission() {
+        return mission;
+    }
+
     private transient File tempFile;
 
     Postprocessing(boolean reserveSpace, boolean worksOnSameFile, String algorithmName) {
