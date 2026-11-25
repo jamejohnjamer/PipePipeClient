@@ -231,6 +231,53 @@ public class StoredFileHelper implements Serializable {
         }
     }
 
+    /**
+     * Deletes the file called {@code siblingName} in the same folder as this file.
+     * Only that exact name is touched. Call from a background thread (SAF lookup).
+     *
+     * @return true if a file was found and deleted
+     */
+    public boolean deleteSibling(final String siblingName) {
+        try {
+            if (siblingName == null || siblingName.isEmpty() || siblingName.contains("/")) {
+                return false;
+            }
+            if (docFile == null) {
+                if (ioFile == null || ioFile.getParentFile() == null) {
+                    return false;
+                }
+                final File f = new File(ioFile.getParentFile(), siblingName);
+                return f.isFile() && f.delete();
+            }
+            DocumentFile tree = docTree;
+            if (tree == null && sourceTree != null && context != null) {
+                tree = DocumentFile.fromTreeUri(context, Uri.parse(sourceTree));
+            }
+            if (tree == null) {
+                return false;
+            }
+            final DocumentFile f = tree.findFile(siblingName);
+            return f != null && f.isFile() && f.delete();
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
+    /** Renames this file inside its folder. @return true on success. */
+    public boolean renameFileTo(final String newName) {
+        try {
+            if (source == null) {
+                return false;
+            }
+            if (docFile == null) {
+                return ioFile != null && ioFile.renameTo(new File(ioFile.getParentFile(), newName));
+            }
+            return docFile.renameTo(newName);
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
     public boolean delete() {
         if (source == null) {
             return true;
