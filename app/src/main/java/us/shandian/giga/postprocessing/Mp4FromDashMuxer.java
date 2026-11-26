@@ -26,6 +26,13 @@ class Mp4FromDashMuxer extends Postprocessing {
         if (m != null) {
             muxer.setTags(m.tagArtist, m.tagTitle, m.tagDate == null ? null : m.tagDate.substring(0, Math.min(10, m.tagDate.length())));
         }
+        if (m != null && m.tagDate != null) {
+            try {
+                muxer.setCreationTimeUnixSeconds(java.time.Instant.parse(m.tagDate).getEpochSecond());
+            } catch (final Exception ignored) {
+                // keep the default time
+            }
+        }
         muxer.parseSources();
         muxer.selectTracks(0, 0);
         muxer.build(out);
