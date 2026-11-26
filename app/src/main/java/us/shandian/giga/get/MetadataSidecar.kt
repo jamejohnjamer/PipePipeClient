@@ -43,6 +43,13 @@ object MetadataSidecar {
         fields["upload_datetime_utc"] = if (date.length > 10) date else ""
         fields["video_id"] = m.tagVideoId.orEmpty()
         fields["url"] = m.source.orEmpty()
+        // aliases used by other tools / the player's own JSON convention
+        fields["channel_name"] = m.tagArtist.orEmpty()
+        fields["original_url"] = m.source.orEmpty()
+        fields["original_title"] = m.tagTitle.orEmpty()
+        fields["platform"] = if ((m.source ?: "").contains("youtu")) "YouTube" else ""
+        fields["downloaded_by"] = "Dinny"
+        fields["format"] = mediaName.substringAfterLast('.', "").uppercase()
         fields["media_type"] = if (m.kind == 'a') "audio" else "video"
         fields["media_filename"] = mediaName
         fields["download_status"] = "completed"
