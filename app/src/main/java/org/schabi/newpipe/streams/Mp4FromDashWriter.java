@@ -27,7 +27,7 @@ public class Mp4FromDashWriter {
     // 2.2 MiB enough for: 1080p 60fps 00h35m00s
     private static final int THRESHOLD_MOOV_LENGTH = (256 * 1024) + (2048 * 1024);
 
-    private final long time;
+    private long time;
 
     private ByteBuffer auxBuffer;
     private SharpStream outStream;
@@ -691,6 +691,17 @@ public class Mp4FromDashWriter {
 
     /** iTunes-style tags (udta/meta/ilst) written INTO the moov box while muxing: no extra pass. */
     private byte[] tagBoxes = new byte[0];
+
+    /**
+     * Sets the creation/modification time stored in the MP4 headers (mvhd/mdhd) to the given
+     * Unix time, e.g. the YouTube publish date. Android reads this as the file's "date"
+     * (MediaMetadataRetriever.METADATA_KEY_DATE). Ignored when not positive.
+     */
+    public void setCreationTimeUnixSeconds(final long unixSeconds) {
+        if (unixSeconds > 0) {
+            time = unixSeconds + EPOCH_OFFSET;
+        }
+    }
 
     /**
      * Sets the tags that will be embedded in the file. Empty/null values are skipped.
