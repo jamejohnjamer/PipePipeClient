@@ -269,9 +269,56 @@ public class OggFromWebMWriter implements Closeable {
         return checksumCrc32;
     }
 
+    private byte[] opusTags = null;
+
+    /** Sets uploader/title/date as Vorbis comments (ARTIST/TITLE/DATE) in the OpusTags packet. */
+    public void setTags(final String artist, final String title, final String date) {
+        opusTags = buildOpusTags(artist, title, date);
+    }
+
+    /** @return a complete "OpusTags" packet with the given comments, or null if there are none. */
+    @Nullable
+    static byte[] buildOpusTags(final String artist, final String title, final String date) {
+        final java.util.ArrayList<byte[]> comments = new java.util.ArrayList<>();
+        addComment(comments, "ARTIST", artist);
+        addComment(comments, "TITLE", title);
+        addComment(comments, "DATE", date);
+        if (comments.isEmpty()) {
+            return null;
+        }
+        int size = 8 + 4 + 4;
+        for (final byte[] c : comments) {
+            size += 4 + c.length;
+        }
+        final ByteBuffer b = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+        b.put(new byte[]{0x4F, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73}); // "OpusTags"
+        b.putInt(0);                                                       // vendor length (none)
+        b.putInt(comments.size());
+        for (final byte[] c : comments) {
+            b.putInt(c.length);
+            b.put(c);
+        }
+        return b.array();
+    }
+
+    private static void addComment(final java.util.List<byte[]> out, final String key,
+                                   final String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return;
+        }
+        String clean = value.replaceAll("[\\u0000-\\u001F]", " ").trim();
+        if (clean.length() > 300) {
+            clean = clean.substring(0, 300);
+        }
+        out.add((key + "=" + clean).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     @Nullable
     private byte[] makeMetadata() {
         if ("A_OPUS".equals(webmTrack.codecId)) {
+            if (opusTags != null) {
+                return opusTags;
+            }
             return new byte[]{
                     0x4F, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73, // "OpusTags" binary string
                     0x00, 0x00, 0x00, 0x00, // writing application string size (not present)
