@@ -41,11 +41,19 @@ class M4aNoDash extends Postprocessing {
             muxer.setTags(m.tagArtist, m.tagTitle, m.tagDate == null ? null
                     : m.tagDate.substring(0, Math.min(10, m.tagDate.length())));
         }
-        if (m != null && m.tagDate != null) {
-            try {
-                muxer.setCreationTimeUnixSeconds(java.time.Instant.parse(m.tagDate).getEpochSecond());
-            } catch (final Exception ignored) {
-                // keep the default time
+        if (m != null) {
+            boolean dateSet = false;
+            if (m.tagDate != null) {
+                try {
+                    muxer.setCreationTimeUnixSeconds(
+                            java.time.Instant.parse(m.tagDate).getEpochSecond());
+                    dateSet = true;
+                } catch (final Exception ignored) {
+                    dateSet = false;
+                }
+            }
+            if (!dateSet) {
+                muxer.clearCreationTime(); // unknown publish date: do not show the download date
             }
         }
         muxer.setMainBrand(0x4D344120);// binary string "M4A "
