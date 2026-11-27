@@ -75,6 +75,10 @@ public class DownloadManager {
         mPendingMissionsDir = getPendingDir(context);
 
         loadPendingMissions(context);
+
+        final Thread pruner = new Thread(this::pruneFinishedMissionsWithoutFile, "download-prune");
+        pruner.setDaemon(true);
+        pruner.start();
     }
 
     private static File getPendingDir(@NonNull Context context) {
@@ -106,25 +110,39 @@ public class DownloadManager {
     }
 
     /**
-     * Loads finished missions from the data source and forgets finished missions whose file does
-     * not exist anymore.
+     * Loads finished missions from the data source. The (slow, one query per file with SAF) check
+     * that the files still exist is NOT done here: this runs in the service's onCreate on the UI
+     * thread, and with many finished downloads it caused the ANR seen after every service restart.
+     * See {@link #pruneFinishedMissionsWithoutFile()}.
      */
     private ArrayList<FinishedMission> loadFinishedMissions() {
-        ArrayList<FinishedMission> finishedMissions = mFinishedMissionStore.loadFinishedMissions();
+        return mFinishedMissionStore.loadFinishedMissions();
+    }
 
-        // check if the files exists, otherwise, forget the download
-        for (int i = finishedMissions.size() - 1; i >= 0; i--) {
-            FinishedMission mission = finishedMissions.get(i);
-
-            if (!mission.storage.existsAsFile()) {
-                if (DEBUG) Log.d(TAG, "downloaded file removed: " + mission.storage.getName());
-
-                mFinishedMissionStore.deleteMission(mission);
-                finishedMissions.remove(i);
-            }
+    /** Forgets finished downloads whose file was removed. Runs on a background thread. */
+    private void pruneFinishedMissionsWithoutFile() {
+        final ArrayList<FinishedMission> snapshot;
+        synchronized (this) {
+            snapshot = new ArrayList<>(mMissionsFinished);
         }
 
-        return finishedMissions;
+        for (FinishedMission mission : snapshot) {
+            boolean exists;
+            try {
+                exists = mission.storage.existsAsFile(); // slow SAF query: outside the lock
+            } catch (Exception e) {
+                continue; // on any doubt keep the entry
+            }
+
+            if (!exists) {
+                if (DEBUG) Log.d(TAG, "downloaded file removed: " + mission.storage.getName());
+                synchronized (this) {
+                    if (mMissionsFinished.remove(mission)) {
+                        mFinishedMissionStore.deleteMission(mission);
+                    }
+                }
+            }
+        }
     }
 
     private void loadPendingMissions(Context ctx) {
