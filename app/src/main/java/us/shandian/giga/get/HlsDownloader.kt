@@ -228,7 +228,10 @@ internal class HlsDownloader(
                     append("-map ").append(index).append(":a? ")
                 }
             }
-            append("-c copy -movflags +faststart ").append(quote(output.absolutePath))
+            append("-c copy ")
+            // uploader/title/date in the same single remux pass
+            FfmpegTagArgs.build(mission).forEach { append(quote(it)).append(' ') }
+            append("-movflags +faststart+use_metadata_tags ").append(quote(output.absolutePath))
         }
 
         Log.d(TAG, "remuxWithFfmpeg inputs=${inputs.size}")
