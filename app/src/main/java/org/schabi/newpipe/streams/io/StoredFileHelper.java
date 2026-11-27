@@ -263,6 +263,73 @@ public class StoredFileHelper implements Serializable {
         }
     }
 
+    /**
+     * Creates (or replaces) a small file next to this file, written via a temp file + rename.
+     * Uses the folder this file already lives in, so it needs no extra permission grant
+     * (a new StoredDirectoryHelper(parentUri) failed with "No persistable permission grants").
+     * Call from a background thread.
+     */
+    public boolean writeSiblingFile(final String name, final byte[] data) {
+        try {
+            if (name == null || name.isEmpty() || name.contains("/")) {
+                return false;
+            }
+            if (docFile == null) {
+                if (ioFile == null || ioFile.getParentFile() == null) {
+                    return false;
+                }
+                return us.shandian.giga.get.AtomicFileWriter.write(
+                        new File(ioFile.getParentFile(), name), data);
+            }
+            DocumentFile tree = docTree;
+            if (tree == null && sourceTree != null && context != null) {
+                tree = DocumentFile.fromTreeUri(context, Uri.parse(sourceTree));
+            }
+            if (tree == null || context == null) {
+                return false;
+            }
+            final DocumentFile old = tree.findFile(name);
+            if (old != null) {
+                old.delete();
+            }
+            final String tmpName = name + ".tmp";
+            final DocumentFile stale = tree.findFile(tmpName);
+            if (stale != null) {
+                stale.delete();
+            }
+            final DocumentFile tmp = tree.createFile("application/octet-stream", tmpName);
+            if (tmp == null) {
+                return false;
+            }
+            try (java.io.OutputStream o =
+                         context.getContentResolver().openOutputStream(tmp.getUri(), "wt")) {
+                if (o == null) {
+                    return false;
+                }
+                o.write(data);
+            }
+            if (tmp.renameTo(name)) {
+                return true;
+            }
+            // provider cannot rename: write the (tiny) file directly
+            tmp.delete();
+            final DocumentFile direct = tree.createFile("application/json", name);
+            if (direct == null) {
+                return false;
+            }
+            try (java.io.OutputStream o =
+                         context.getContentResolver().openOutputStream(direct.getUri(), "wt")) {
+                if (o == null) {
+                    return false;
+                }
+                o.write(data);
+            }
+            return true;
+        } catch (final Exception e) {
+            return false;
+        }
+    }
+
     /** Renames this file inside its folder. @return true on success. */
     public boolean renameFileTo(final String newName) {
         try {
