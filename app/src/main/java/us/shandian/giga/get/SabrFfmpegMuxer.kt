@@ -53,9 +53,10 @@ internal class SabrFfmpegMuxer(
             }
             add("-c")
             add("copy")
+            addAll(FfmpegTagArgs.build(mission)) // uploader/title/date in the same single remux pass
             if (supportsFastStart(output)) {
                 add("-movflags")
-                add("+faststart")
+                add("+faststart+use_metadata_tags")
             }
             add(output.absolutePath)
         }
