@@ -40,6 +40,11 @@ class OggFromWebmDemuxer extends Postprocessing {
 
     int process(SharpStream out, @NonNull SharpStream... sources) throws IOException {
         OggFromWebMWriter demuxer = new OggFromWebMWriter(sources[0], out);
+        final us.shandian.giga.get.DownloadMission m = currentMission();
+        if (m != null) {
+            demuxer.setTags(m.tagArtist, m.tagTitle, m.tagDate == null ? null
+                    : m.tagDate.substring(0, Math.min(10, m.tagDate.length())));
+        }
         demuxer.parseSource();
         demuxer.selectTrack(0);
         demuxer.build();
