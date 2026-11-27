@@ -96,9 +96,10 @@ abstract class StreamDAO : BasicDAO<StreamEntity> {
 
             // Use the existent upload date if the newer stream does not have a better precision
             // (i.e. is an approximation). This is done to prevent unnecessary changes.
-            val hasBetterPrecision =
-                newerStream.uploadDate != null && newerStream.isUploadDateApproximation != true
-            if (existentMinimalStream.uploadDate != null && !hasBetterPrecision) {
+            // Dinny: never replace an existing date. The feed is sorted by upload_date, so replacing an
+            // approximate date with the exact one (which happens when a video is opened) made the
+            // video you just clicked jump up or down in the feed.
+            if (existentMinimalStream.uploadDate != null) {
                 newerStream.uploadDate = existentMinimalStream.uploadDate
                 newerStream.textualUploadDate = existentMinimalStream.textualUploadDate
                 newerStream.isUploadDateApproximation = existentMinimalStream.isUploadDateApproximation
