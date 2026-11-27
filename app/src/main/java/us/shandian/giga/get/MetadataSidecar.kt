@@ -1,9 +1,6 @@
 package us.shandian.giga.get
 
 import android.util.Log
-import org.schabi.newpipe.streams.io.StoredDirectoryHelper
-import java.io.File
-import java.io.IOException
 
 /**
  * Writes "<media file name>.metadata.json" next to a finished download.
@@ -29,9 +26,6 @@ object MetadataSidecar {
     fun writeAsync(m: DownloadMission) {
         if (!hasData(m)) return
         val mediaName = m.storage.name ?: return
-        val parent = try { m.storage.parentUri } catch (e: Exception) { null }
-        val ioFile: File? = m.storage.ioFile
-        val tag = m.storage.tag
         val context = m.context
         val date = m.tagDate.orEmpty()
         val fields = LinkedHashMap<String, String>()
@@ -56,18 +50,13 @@ object MetadataSidecar {
         val bytes = SidecarJson.build(fields).toByteArray(Charsets.UTF_8)
         val finalName = SidecarNames.forMedia(mediaName)
 
+        val storage = m.storage
+        TagCheck.checkAsync(m)
         Thread({
             try {
-                if (ioFile != null) {
-                    val dir = ioFile.parentFile ?: return@Thread
-                    if (!AtomicFileWriter.write(File(dir, finalName), bytes)) {
-                        Log.w(TAG, "could not write sidecar (download is unaffected)")
-                        report(context, "write to folder failed for $finalName")
-                    }
-                } else if (parent != null && context != null) {
-                    writeViaStorage(context, parent, tag, mediaName, finalName, bytes)
-                } else {
-                    report(context, "no folder information for $finalName (parent=$parent)")
+                if (!storage.writeSiblingFile(finalName, bytes)) {
+                    Log.w(TAG, "could not write sidecar (download is unaffected)")
+                    report(context, "storage refused writing $finalName")
                 }
             } catch (e: Throwable) {
                 Log.w(TAG, "could not write sidecar (download is unaffected)", e)
@@ -80,40 +69,5 @@ object MetadataSidecar {
     private fun report(context: android.content.Context?, reason: String) {
         if (context == null) return
         org.schabi.newpipe.error.RecentErrors.recordNote(context, "Sidecar", reason, "")
-    }
-
-    private fun writeViaStorage(
-        context: android.content.Context,
-        parent: android.net.Uri,
-        tag: String?,
-        mediaName: String,
-        finalName: String,
-        bytes: ByteArray
-    ) {
-        val dir = StoredDirectoryHelper(context, parent, tag)
-        val tmp = dir.createFile(SidecarNames.tempFor(mediaName), "application/octet-stream")
-        if (tmp == null) {
-            report(context, "could not create temp file in the download folder")
-            return
-        }
-        var done = false
-        try {
-            tmp.stream.use { out ->
-                out.setLength(0)
-                out.write(bytes)
-            }
-            tmp.deleteSibling(finalName) // a sidecar from an earlier download of the same name
-            done = tmp.renameFileTo(finalName)
-        } catch (e: IOException) {
-            done = false
-        }
-        if (!done) {
-            // rename not supported by this storage provider: remove the temp file, write directly (tiny file)
-            try { tmp.delete() } catch (ignored: Exception) { }
-            dir.createFile(finalName, "application/json")?.stream?.use { out ->
-                out.setLength(0)
-                out.write(bytes)
-            }
-        }
     }
 }
