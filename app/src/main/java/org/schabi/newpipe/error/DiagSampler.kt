@@ -42,16 +42,31 @@ object DiagSampler {
         handler.removeCallbacks(tick)
     }
 
+    /** Thread names from /proc (cheap file reads) - NOT Thread.getAllStackTraces(), which suspends every thread. */
+    private fun threadNames(): List<String> = try {
+        java.io.File("/proc/self/task").listFiles()?.mapNotNull {
+            try { java.io.File(it, "comm").readText().trim() } catch (e: Exception) { null }
+        } ?: emptyList()
+    } catch (e: Throwable) {
+        emptyList()
+    }
+
     @JvmStatic
     fun snapshot(): String = try {
         val rt = Runtime.getRuntime()
         val usedMb = (rt.totalMemory() - rt.freeMemory()) / 1048576
         val maxMb = rt.maxMemory() / 1048576
         val nativeMb = Debug.getNativeHeapAllocatedSize() / 1048576
-        val threads = Thread.getAllStackTraces().keys
-        val groups = threads.groupingBy { it.name.replace(Regex("[0-9]+"), "#") }.eachCount()
+        val names = threadNames()
+        val groups = names.groupingBy { it.replace(Regex("[0-9]+"), "#") }.eachCount()
             .entries.sortedByDescending { it.value }.take(6).joinToString(", ") { "${it.key}x${it.value}" }
-        "javaHeap=${usedMb}/${maxMb}MB native=${nativeMb}MB threads=${threads.size} top=[$groups]"
+        val mi = Debug.MemoryInfo()
+        Debug.getMemoryInfo(mi)
+        val stats = mi.memoryStats
+        fun st(k: String) = (stats[k]?.toLongOrNull() ?: 0L) / 1024
+        "javaHeap=${usedMb}/${maxMb}MB native=${nativeMb}MB threads=${names.size} top=[$groups] " +
+            "pssMB[java=${st("summary.java-heap")} native=${st("summary.native-heap")} " +
+            "graphics=${st("summary.graphics")} code=${st("summary.code")} other=${st("summary.private-other")}]"
     } catch (e: Throwable) {
         "snapshot failed"
     }
