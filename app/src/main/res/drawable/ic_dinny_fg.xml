@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- glow behind the mascot -->
+    <path
+        android:pathData="M54,58m-33,0a33,33 0,1 1,66 0a33,33 0,1 1,-66 0"
+        android:fillColor="#2222E5FF" />
+    <!-- back spikes -->
+    <path
+        android:pathData="M37,41 L42,27 L49,38 Z M47,37 L54,22 L61,37 Z M59,38 L66,27 L71,41 Z"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:strokeColor="#FFFF5CCF"
+        android:fillColor="#FFFF5CCF" />
+    <!-- body / head -->
+    <path android:pathData="M54,60m-25,0a25,25 0,1 1,50 0a25,25 0,1 1,-50 0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="45" android:centerY="48"
+                android:gradientRadius="42"
+                android:type="radial">
+                <item android:color="#FF9BFBE8" android:offset="0.0" />
+                <item android:color="#FF22D3EE" android:offset="0.45" />
+                <item android:color="#FF4F46E5" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- cheeks -->
+    <path
+        android:pathData="M40,66m-3.4,0a3.4,3.4 0,1 1,6.8 0a3.4,3.4 0,1 1,-6.8 0M68,66m-3.4,0a3.4,3.4 0,1 1,6.8 0a3.4,3.4 0,1 1,-6.8 0"
+        android:fillColor="#66FF5CCF" />
+    <!-- eyes -->
+    <path
+        android:pathData="M45,56m-5.2,0a5.2,5.2 0,1 1,10.4 0a5.2,5.2 0,1 1,-10.4 0M63,56m-5.2,0a5.2,5.2 0,1 1,10.4 0a5.2,5.2 0,1 1,-10.4 0"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M46,57m-2.6,0a2.6,2.6 0,1 1,5.2 0a2.6,2.6 0,1 1,-5.2 0M64,57m-2.6,0a2.6,2.6 0,1 1,5.2 0a2.6,2.6 0,1 1,-5.2 0"
+        android:fillColor="#FF0B0B2A" />
+    <!-- smile -->
+    <path
+        android:pathData="M47,68 Q54,75 61,68"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF" />
+    <!-- sparkle -->
+    <path
+        android:pathData="M84,26 l1.6,4.4 l4.4,1.6 l-4.4,1.6 l-1.6,4.4 l-1.6,-4.4 l-4.4,-1.6 l4.4,-1.6 z"
+        android:fillColor="#FFFFFFFF" />
+</vector>
