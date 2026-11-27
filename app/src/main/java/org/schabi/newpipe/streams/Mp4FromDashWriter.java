@@ -704,6 +704,14 @@ public class Mp4FromDashWriter {
     }
 
     /**
+     * Writes 0 ("not set") as creation/modification time instead of the time of muxing. Used when the
+     * publish date is unknown, so a download date is never presented as a publish date.
+     */
+    public void clearCreationTime() {
+        time = 0;
+    }
+
+    /**
      * Sets the tags that will be embedded in the file. Empty/null values are skipped.
      * Must be called before {@link #build(SharpStream)}.
      */
